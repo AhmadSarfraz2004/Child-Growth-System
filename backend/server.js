@@ -16,7 +16,20 @@ app.get("/", (req, res) => {
   res.send("Child Growth System API is running...");
 });
 
+// Use authentication routes for register, login, and profile APIs
 app.use("/api/auth", require("./routes/authRoutes"));
+
+// Use child routes for child profile management APIs
+app.use("/api/children", require("./routes/childRoutes"));
+
+// Use growth record routes for growth prediction records APIs
+app.use("/api/growth-records", require("./routes/growthRecordRoutes"));
+
+// Use weekly routine routes for weekly progress tracking APIs
+app.use("/api/weekly-routines", require("./routes/weeklyRoutineRoutes"));
+
+// Use recommendation routes for child recommendation records APIs
+app.use("/api/recommendations", require("./routes/recommendationRoutes"));
 
 const PORT = process.env.PORT || 5000;
 

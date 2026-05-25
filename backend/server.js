@@ -31,6 +31,9 @@ app.use("/api/weekly-routines", require("./routes/weeklyRoutineRoutes"));
 // Use recommendation routes for child recommendation records APIs
 app.use("/api/recommendations", require("./routes/recommendationRoutes"));
 
+// Use admin routes for super admin dashboard statistics APIs
+app.use("/api/admin", require("./routes/adminRoutes"));
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {

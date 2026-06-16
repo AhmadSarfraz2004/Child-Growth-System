@@ -76,7 +76,6 @@ const modelFeatureOptions = {
 };
 
 const requiredModelFeatureLabels = {
-  childName: "Child name",
   meals: "Meals per day",
   protein: "Milk/Protein intake",
   screen_time: "Screen time",
@@ -177,6 +176,10 @@ function getPredictionFormError(form, calculatedBmi) {
     return measurementError;
   }
 
+  if (!form.childId && !String(form.childName || "").trim()) {
+    return "Child name is required when no saved child is selected.";
+  }
+
   for (const [field, label] of Object.entries(requiredModelFeatureLabels)) {
     if (!String(form[field] || "").trim()) {
       return `${label} is required.`;
@@ -200,26 +203,80 @@ function getBmiCategory(bmi) {
   if (!value) return "Waiting";
   if (value < 14) return "Underweight";
   if (value <= 18.5) return "Normal";
-  return "Needs review";
+  if (value < 25) return "Overweight";
+  return "Obese";
 }
 
 function getStatusClass(status = "") {
   const normalized = status.toLowerCase();
   if (normalized.includes("normal") || normalized.includes("healthy")) return "status-normal";
-  if (normalized.includes("above")) return "status-high";
-  if (normalized.includes("under")) return "status-low";
+  if (
+    normalized.includes("above") ||
+    normalized.includes("overweight") ||
+    normalized.includes("review") ||
+    normalized.includes("obese") ||
+    normalized.includes("risk")
+  ) return "status-high";
+  if (normalized.includes("under") || normalized.includes("attention")) return "status-low";
   return "status-muted";
 }
 
-function buildRecommendations(status = "", bmi = "") {
-  const normalizedStatus = status.toLowerCase();
-  const bmiCategory = getBmiCategory(bmi);
+const recommendationIconByCategory = {
+  "Improve Nutrition": HeartPulse,
+  "Improve Sleep": Shield,
+  "Increase Physical Activity": Activity,
+  "Reduce Screen Time": Shield,
+  "Increase Water Intake": HeartPulse,
+  "Maintain Current Routine": Calendar,
+  "Consult Pediatrician": Shield,
+  "Weight Management": Calculator,
+};
 
-  if (normalizedStatus.includes("under") || bmiCategory === "Underweight") {
+function decorateRecommendationPlan(plan) {
+  if (!plan?.items?.length) {
+    return null;
+  }
+
+  return {
+    ...plan,
+    items: plan.items.map((item) => ({
+      ...item,
+      icon: recommendationIconByCategory[item.category] || Sparkles,
+    })),
+  };
+}
+
+function buildRecommendations(status = "", bmi = "", medical = "No", bmiCategoryOverride = "", backendPlan = null) {
+  const normalizedBackendPlan = decorateRecommendationPlan(backendPlan);
+  if (normalizedBackendPlan) {
+    return normalizedBackendPlan;
+  }
+
+  const normalizedStatus = status.toLowerCase();
+  const bmiCategory = bmiCategoryOverride || getBmiCategory(bmi);
+  const hasMedicalCondition = String(medical || "").toLowerCase() === "yes";
+  const withDoctorItem = (items) => (
+    hasMedicalCondition && !items.some((item) => /doctor|medical|pediatrician/i.test(item.title))
+      ? [
+          ...items,
+          {
+            title: "Consult or monitor with doctor",
+            text: "Because a medical condition is marked yes, review the growth plan with a qualified doctor.",
+            icon: Shield,
+          },
+        ]
+      : items
+  );
+
+  if (
+    normalizedStatus.includes("under") ||
+    normalizedStatus.includes("attention") ||
+    bmiCategory === "Underweight"
+  ) {
     return {
       headline: "Nutrition and routine support",
       summary: "The result suggests this child may need closer nutrition and growth monitoring.",
-      items: [
+      items: withDoctorItem([
         {
           title: "Increase nutrient-dense meals",
           text: "Add balanced meals with protein, grains, fruits, vegetables, and healthy fats.",
@@ -230,20 +287,43 @@ function buildRecommendations(status = "", bmi = "") {
           text: "Keep a weekly log of sleep, active play, screen time, and appetite changes.",
           icon: Activity,
         },
-        {
-          title: "Consult a pediatrician",
-          text: "If low growth continues, review the child history with a qualified doctor.",
-          icon: Shield,
-        },
-      ],
+      ]),
     };
   }
 
-  if (normalizedStatus.includes("above") || bmiCategory === "Needs review") {
+  if (
+    normalizedStatus.includes("obese") ||
+    normalizedStatus.includes("high risk") ||
+    bmiCategory === "Obese"
+  ) {
+    return {
+      headline: "Weight management and medical review plan",
+      summary: "The result needs careful weight-management support and medical review.",
+      items: withDoctorItem([
+        {
+          title: "Plan a medical review",
+          text: "Discuss BMI, diet, activity, and any symptoms with a pediatrician.",
+          icon: Shield,
+        },
+        {
+          title: "Support daily movement",
+          text: "Build a sustainable activity routine and reduce long sedentary periods.",
+          icon: Activity,
+        },
+      ]),
+    };
+  }
+
+  if (
+    normalizedStatus.includes("above") ||
+    normalizedStatus.includes("overweight") ||
+    normalizedStatus.includes("review") ||
+    bmiCategory === "Overweight"
+  ) {
     return {
       headline: "Healthy balance plan",
       summary: "The result looks higher than the usual range, so balanced habits matter.",
-      items: [
+      items: withDoctorItem([
         {
           title: "Review meal portions",
           text: "Keep meals balanced and limit sugary drinks, packaged snacks, and frequent fast food.",
@@ -259,14 +339,14 @@ function buildRecommendations(status = "", bmi = "") {
           text: "Save height, weight, and BMI regularly so trends are easier to compare.",
           icon: Calendar,
         },
-      ],
+      ]),
     };
   }
 
   return {
-    headline: "Keep current healthy habits",
+    headline: "Healthy balance plan",
     summary: "The result is in a reassuring range. Continue regular tracking and balanced routines.",
-    items: [
+    items: withDoctorItem([
       {
         title: "Maintain balanced meals",
         text: "Continue a steady routine with protein, fruits, vegetables, grains, and enough water.",
@@ -282,7 +362,7 @@ function buildRecommendations(status = "", bmi = "") {
         text: "Save a new growth prediction every few weeks to build a reliable history.",
         icon: Calendar,
       },
-    ],
+    ]),
   };
 }
 
@@ -342,79 +422,216 @@ function AuthScreen({ onAuth }) {
   };
 
   return (
-    <main className="authPage">
-      <section className="authIntro">
-        <Logo />
-        <img src={childPhoto} alt="Child playing outdoors" className="authImage" />
-        <h1>A calmer way to follow your child's growth</h1>
-        <p>AI-powered insights, made for parents like you.</p>
-        <div className="trustRow">
-          <span><CheckCircle2 size={15} /> Easy to use</span>
-          <span><Sparkles size={15} /> AI insights</span>
-          <span><Shield size={15} /> Secure</span>
+    <main className="landingPage">
+      <header className="landingHeader">
+        <a href="#home" className="brandLink" aria-label="Child Growth Predictor home">
+          <Logo />
+        </a>
+        <nav className="landingNav" aria-label="Landing page navigation">
+          <a href="#about">About</a>
+          <a href="#features">Features</a>
+          <a href="#working">How it works</a>
+          <a href="#auth" onClick={() => setMode("login")}>Login</a>
+        </nav>
+        <a className="primaryButton landingHeaderCta" href="#auth" onClick={() => setMode("register")}>
+          Get started
+        </a>
+      </header>
+
+      <section
+        id="home"
+        className="landingHero"
+        style={{ backgroundImage: `linear-gradient(90deg, rgba(11, 31, 50, 0.84), rgba(11, 31, 50, 0.5), rgba(11, 31, 50, 0.14)), url(${childPhoto})` }}
+      >
+        <div className="landingHeroContent">
+          <span className="heroEyebrow"><Sparkles size={16} /> AI growth tracking for families</span>
+          <h1>Child Growth Predictor</h1>
+          <p>
+            A polished parent dashboard for recording growth, checking BMI, generating AI-backed
+            predictions, and turning everyday routines into clearer next steps.
+          </p>
+          <div className="landingHeroActions">
+            <a className="primaryButton" href="#auth" onClick={() => setMode("register")}>
+              <Sparkles size={17} /> Start tracking
+            </a>
+            <a className="ghostButton heroGhostButton" href="#working">
+              See how it works
+            </a>
+          </div>
+          <div className="trustRow heroTrustRow">
+            <span><CheckCircle2 size={15} /> BMI-aware results</span>
+            <span><Shield size={15} /> Parent-controlled data</span>
+            <span><HeartPulse size={15} /> Routine guidance</span>
+          </div>
+        </div>
+
+        <div className="heroMetrics" aria-label="Product highlights">
+          <span><strong>3</strong><small>prediction checks</small></span>
+          <span><strong>13</strong><small>model inputs</small></span>
+          <span><strong>24/7</strong><small>history access</small></span>
         </div>
       </section>
 
-      <section className="authPanel">
-        <div className="authTabs" aria-label="Authentication mode">
-          <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>
-            Login
-          </button>
-          <button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>
-            Register
-          </button>
+      <section id="about" className="landingSection aboutSection">
+        <div className="sectionIntro">
+          <span className="eyebrow">About</span>
+          <h2>Built for calmer, clearer growth monitoring</h2>
+          <p>
+            Child Growth Predictor brings child profiles, BMI analysis, growth prediction,
+            history, and recommendations into one parent-friendly workspace.
+          </p>
         </div>
-        <h2>{mode === "login" ? "Welcome Back" : "Create Parent Account"}</h2>
-        <p>
-          {mode === "login"
-            ? "Login to continue tracking your child's growth progress."
-            : "Start tracking your child's growth journey with personalized AI insights."}
-        </p>
+        <div className="aboutGrid">
+          <article>
+            <Baby size={22} />
+            <h3>Child-first records</h3>
+            <p>Keep children, measurements, and assessment details organized without losing context.</p>
+          </article>
+          <article>
+            <Calculator size={22} />
+            <h3>BMI transparency</h3>
+            <p>Show height, weight, BMI, and BMI category beside the final status for easier review.</p>
+          </article>
+          <article>
+            <HeartPulse size={22} />
+            <h3>Actionable routines</h3>
+            <p>Translate nutrition, activity, sleep, and screen-time inputs into practical guidance.</p>
+          </article>
+        </div>
+      </section>
 
-        <form onSubmit={submitAuth} className="formStack">
-          {mode === "register" && (
+      <section id="features" className="landingSection featuresSection">
+        <div className="sectionIntro compact">
+          <span className="eyebrow">Features</span>
+          <h2>Everything parents need to track growth with confidence</h2>
+        </div>
+        <div className="featureGrid">
+          {[
+            ["AI growth prediction", "Use physical measurements plus lifestyle inputs for a fuller assessment.", Sparkles],
+            ["BMI analysis", "Calculate BMI from height and weight, then classify the result clearly.", Calculator],
+            ["Child profiles", "Create child records so every prediction can connect to the right history.", Users],
+            ["Growth history", "Review saved measurements and predictions in a clean timeline.", History],
+            ["Recommendation plans", "Receive nutrition, activity, sleep, and medical-review guidance when needed.", ClipboardList],
+            ["Parent dashboard", "Scan latest records, averages, and trends from a professional workspace.", Home],
+          ].map(([title, text, Icon]) => (
+            <article className="featureCard" key={title}>
+              <span><Icon size={19} /></span>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="working" className="landingSection workingSection">
+        <div className="sectionIntro">
+          <span className="eyebrow">How it works</span>
+          <h2>From measurement to recommendation in four focused steps</h2>
+        </div>
+        <div className="workingTimeline">
+          {[
+            ["01", "Create a profile", "Add a child profile or run a standalone assessment."],
+            ["02", "Enter measurements", "Capture age, gender, height, weight, BMI, and BMI category."],
+            ["03", "Add routine inputs", "Include meals, fruit and vegetable intake, protein, sleep, activity, screen time, and medical condition."],
+            ["04", "Review the plan", "See the final growth status, model inputs, trend chart, and recommendation guidance."],
+          ].map(([step, title, text]) => (
+            <article key={step}>
+              <span>{step}</span>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="landingSection professionalSection">
+        <div>
+          <span className="eyebrow">Why it feels dependable</span>
+          <h2>Designed to reduce guesswork without hiding the data</h2>
+          <p>
+            The interface keeps core measurements visible, validates BMI before prediction,
+            and stores the exact assessment details used for each saved result.
+          </p>
+        </div>
+        <div className="qualityList">
+          <span><CheckCircle2 size={16} /> BMI category appears in the result summary</span>
+          <span><CheckCircle2 size={16} /> Physical and lifestyle inputs remain visible</span>
+          <span><CheckCircle2 size={16} /> Chart bars reveal details on hover or focus</span>
+          <span><CheckCircle2 size={16} /> Medical condition prompts doctor-review guidance</span>
+        </div>
+      </section>
+
+      <section id="auth" className="landingSection authSection">
+        <div className="sectionIntro compact">
+          <span className="eyebrow">Parent account</span>
+          <h2>{mode === "login" ? "Welcome back" : "Create your parent account"}</h2>
+          <p>
+            {mode === "login"
+              ? "Login to continue tracking your child's growth progress."
+              : "Start tracking growth history, BMI, predictions, and recommendations in one place."}
+          </p>
+        </div>
+
+        <section className="authPanel">
+          <div className="authTabs" aria-label="Authentication mode">
+            <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>
+              Login
+            </button>
+            <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>
+              Register
+            </button>
+          </div>
+
+          <form onSubmit={submitAuth} className="formStack">
+            {mode === "register" && (
+              <label>
+                Full Name
+                <input value={form.name} onChange={(event) => updateForm("name", event.target.value)} required />
+              </label>
+            )}
             <label>
-              Full Name
-              <input value={form.name} onChange={(event) => updateForm("name", event.target.value)} required />
-            </label>
-          )}
-          <label>
-            Email Address
-            <input
-              type="email"
-              value={form.email}
-              onChange={(event) => updateForm("email", event.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Password
-            <input
-              type="password"
-              value={form.password}
-              onChange={(event) => updateForm("password", event.target.value)}
-              required
-            />
-          </label>
-          {mode === "register" && (
-            <label>
-              Confirm Password
+              Email Address
               <input
-                type="password"
-                value={form.confirmPassword}
-                onChange={(event) => updateForm("confirmPassword", event.target.value)}
+                type="email"
+                value={form.email}
+                onChange={(event) => updateForm("email", event.target.value)}
                 required
               />
             </label>
-          )}
-          {message && <p className="formMessage errorText">{message}</p>}
-          <button className="primaryButton fullButton" disabled={loading}>
-            {loading ? <><ButtonSpinner /> Please wait...</> : mode === "login" ? "Login" : "Register"}
-          </button>
-        </form>
+            <label>
+              Password
+              <input
+                type="password"
+                value={form.password}
+                onChange={(event) => updateForm("password", event.target.value)}
+                required
+              />
+            </label>
+            {mode === "register" && (
+              <label>
+                Confirm Password
+                <input
+                  type="password"
+                  value={form.confirmPassword}
+                  onChange={(event) => updateForm("confirmPassword", event.target.value)}
+                  required
+                />
+              </label>
+            )}
+            {message && <p className="formMessage errorText">{message}</p>}
+            <button className="primaryButton fullButton" disabled={loading}>
+              {loading ? <><ButtonSpinner /> Please wait...</> : mode === "login" ? "Login" : "Create account"}
+            </button>
+          </form>
 
-        <p className="smallNote">Backend: {getApiBaseUrl()}</p>
+          <p className="smallNote">Backend: {getApiBaseUrl()}</p>
+        </section>
       </section>
+
+      <footer className="landingFooter">
+        <Logo />
+        <span>Growth tracking, BMI awareness, and recommendations for parent-led care.</span>
+      </footer>
     </main>
   );
 }
@@ -481,6 +698,13 @@ function Dashboard({ childrenList, history, setActiveView }) {
     history.length > 0
       ? (history.reduce((sum, record) => sum + Number(record.bmi || 0), 0) / history.length).toFixed(1)
       : "0.0";
+  const chartRecords = history.length
+    ? history.slice(0, 6).reverse()
+    : [
+        { bmi: 14, bmiCategory: "Normal", growthStatus: "Sample" },
+        { bmi: 15, bmiCategory: "Normal", growthStatus: "Sample" },
+        { bmi: 16, bmiCategory: "Normal", growthStatus: "Sample" },
+      ];
 
   return (
     <section className="viewStack">
@@ -526,13 +750,30 @@ function Dashboard({ childrenList, history, setActiveView }) {
             <span className="statusPill status-normal">Live</span>
           </div>
           <div className="miniChart" aria-label="BMI trend chart">
-            {(history.length ? history.slice(0, 6).reverse() : [{ bmi: 14 }, { bmi: 15 }, { bmi: 16 }]).map((record, index) => (
-              <span
-                key={`${record._id || "sample"}-${index}`}
-                style={{ height: `${Math.max(20, Math.min(92, Number(record.bmi || 14) * 4))}%` }}
-                title={`BMI ${record.bmi || "sample"}`}
-              />
-            ))}
+            {chartRecords.map((record, index) => {
+              const bmiValue = Number(record.bmi || 14);
+              const bmiCategory = record.bmiCategory || getBmiCategory(record.bmi);
+              const tooltipLabel = record._id
+                ? `${formatDate(record.createdAt)}. BMI ${record.bmi}. ${bmiCategory}. ${record.growthStatus || "No status"}.`
+                : `Sample BMI ${record.bmi}.`;
+
+              return (
+                <span
+                  aria-label={tooltipLabel}
+                  className="chartBar"
+                  key={`${record._id || "sample"}-${index}`}
+                  role="img"
+                  style={{ height: `${Math.max(20, Math.min(92, bmiValue * 4))}%` }}
+                  tabIndex={0}
+                >
+                  <span className="chartTooltip">
+                    <strong>BMI {record.bmi || "sample"}</strong>
+                    <small>{bmiCategory}</small>
+                    <small>{record.growthStatus || "No status"}</small>
+                  </span>
+                </span>
+              );
+            })}
           </div>
         </article>
 
@@ -744,18 +985,35 @@ function PredictionView({
   );
   const predictionError = getPredictionFormError(predictionForm, calculatedBmi);
   const latestBmi = latestRecord?.bmi || calculatedBmi;
+  const latestBmiCategory = latestRecord?.bmiCategory || latestPrediction?.bmiCategory || getBmiCategory(latestBmi);
+  const latestMedical = latestRecord?.medical || predictionForm.medical;
   const recommendations = latestPrediction
-    ? buildRecommendations(latestPrediction.growthStatus, latestBmi)
+    ? buildRecommendations(
+        latestPrediction.growthStatus,
+        latestBmi,
+        latestMedical,
+        latestBmiCategory,
+        latestPrediction.recommendations
+      )
     : null;
   const modelInputSummary = latestPrediction
     ? [
+        ["Child", latestRecord?.childName || predictionForm.childName || "Standalone assessment"],
+        ["Age", latestRecord?.age ?? predictionForm.age],
+        ["Gender", latestRecord?.gender || predictionForm.gender],
+        ["Height", `${latestRecord?.height || predictionForm.height} cm`],
+        ["Weight", `${latestRecord?.weight || predictionForm.weight} kg`],
+        ["BMI", latestBmi],
+        ["BMI Category", latestBmiCategory],
         ["Meals", latestRecord?.meals || predictionForm.meals],
         ["Fruit/Veg", latestRecord?.fruitsVeggies || predictionForm.fruits_veggies],
+        ["Junk food", latestRecord?.junkFood || predictionForm.junk_food],
         ["Protein", latestRecord?.protein || predictionForm.protein],
         ["Sleep", latestRecord?.sleep || predictionForm.sleep],
         ["Activity", latestRecord?.activity || predictionForm.activity],
         ["Screen time", latestRecord?.screenTimeCategory || predictionForm.screen_time],
-        ["Medical", latestRecord?.medical || predictionForm.medical],
+        ["Medical", latestMedical],
+        ["Water intake", `${latestRecord?.waterIntake ?? predictionForm.waterIntake} glasses`],
       ]
     : [];
 
@@ -827,7 +1085,7 @@ function PredictionView({
             placeholder="Child name"
             value={predictionForm.childName}
             onChange={(event) => updatePredictionField("childName", event.target.value)}
-            required
+            required={!predictionForm.childId}
           />
         </label>
 
@@ -1048,7 +1306,7 @@ function PredictionView({
             </article>
             <article className="resultTile green">
               <span>BMI Category</span>
-              <strong>{getBmiCategory(latestBmi)}</strong>
+              <strong>{latestBmiCategory}</strong>
             </article>
             <article className="resultTile purple">
               <span>Growth Status</span>
@@ -1060,7 +1318,7 @@ function PredictionView({
             <div className="panelHeader">
               <div>
                 <span className="eyebrow">Model Inputs Used</span>
-                <h2>Assessment details sent to AI</h2>
+                <h2>Assessment details used for prediction</h2>
               </div>
             </div>
             <div className="inputChipGrid">
@@ -1282,6 +1540,7 @@ function App() {
     setLoading(true);
 
     try {
+      const bmiCategory = getBmiCategory(calculatedBmi);
       const payload = {
         childName: predictionForm.childName.trim(),
         age: Number(predictionForm.age),
@@ -1289,6 +1548,7 @@ function App() {
         height: Number(predictionForm.height),
         weight: Number(predictionForm.weight),
         bmi: Number(calculatedBmi),
+        bmiCategory,
         meals: predictionForm.meals,
         fruits_veggies: predictionForm.fruits_veggies,
         junk_food: predictionForm.junk_food,

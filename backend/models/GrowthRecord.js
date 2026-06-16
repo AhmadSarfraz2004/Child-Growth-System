@@ -85,6 +85,13 @@ const growthRecordSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Store BMI category used by backend growth-status guardrails
+    bmiCategory: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
     // Store meals category used by the trained AI model
     meals: {
       type: String,

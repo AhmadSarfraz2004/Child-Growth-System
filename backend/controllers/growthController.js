@@ -4,6 +4,13 @@ const { predictGrowthStatus } = require("../services/aiService");
 // Import builder that formats data using the exact trained model column names
 const { buildGrowthInput } = require("../utils/aiInputBuilder");
 
+// Import BMI guardrail helpers that keep final growth labels physically consistent
+const {
+  buildRecommendationPlan,
+  getBmiCategoryFromBmi,
+  normalizeGrowthStatusByBMI,
+} = require("../utils/growthStatusRules");
+
 // Import GrowthRecord model to save AI prediction history
 const GrowthRecord = require("../models/GrowthRecord");
 
@@ -244,7 +251,10 @@ const formatGrowthRecord = (record) => ({
   // Return BMI
   bmi: record.bmi,
 
-  // Return AI growth status
+  // Return BMI category, calculating it for older records that do not have the field
+  bmiCategory: record.bmiCategory || getBmiCategoryFromBmi(record.bmi),
+
+  // Return final growth status after BMI consistency rules
   growthStatus: record.growthStatus,
 
   // Return meals category used by the AI model
@@ -329,6 +339,17 @@ const predictGrowth = async (req, res) => {
 
         // Send validation message
         message: "Please provide age, gender, height, weight, and bmi",
+      });
+    }
+
+    // If no saved child is selected, require a child name for the standalone assessment
+    if (!hasValue(childId) && !String(requestBody.childName || "").trim()) {
+      return res.status(400).json({
+        // Mark request as failed
+        success: false,
+
+        // Send clean validation message
+        message: "Child name is required when no saved child is selected",
       });
     }
 
@@ -474,6 +495,9 @@ const predictGrowth = async (req, res) => {
     // Calculate BMI on the server from height and weight so the saved value is trustworthy
     const expectedBmi = calculateExpectedBmi(numericHeight, numericWeight);
 
+    // Calculate BMI category on the server so the final label uses trusted physical data
+    const bmiCategory = getBmiCategoryFromBmi(expectedBmi);
+
     // Reject requests where provided BMI does not match height and weight closely enough
     if (Math.abs(numericBmi - expectedBmi) > 0.5) {
       return res.status(400).json({
@@ -563,11 +587,11 @@ const predictGrowth = async (req, res) => {
       });
     }
 
-    // Extract growth status from AI service response
-    const growthStatus = prediction?.growthStatus;
+    // Extract raw growth status from AI service response
+    const aiGrowthStatus = prediction?.growthStatus;
 
     // Validate that AI service returned the expected field
-    if (!hasValue(growthStatus)) {
+    if (!hasValue(aiGrowthStatus)) {
       // Return clean AI failure response when prediction payload is incomplete
       return res.status(502).json({
         // Mark request as failed
@@ -577,6 +601,20 @@ const predictGrowth = async (req, res) => {
         message: "AI prediction failed",
       });
     }
+
+    // Correct contradictory model labels using BMI category before saving or responding
+    const growthStatus = normalizeGrowthStatusByBMI(
+      bmiCategory,
+      aiGrowthStatus,
+      modelFeatures.medical
+    );
+
+    // Build recommendation copy from the corrected final status and BMI category
+    const recommendations = buildRecommendationPlan(
+      growthStatus,
+      bmiCategory,
+      modelFeatures.medical
+    );
 
     // Prepare saved record variable outside try block for response
     let savedRecord;
@@ -618,6 +656,9 @@ const predictGrowth = async (req, res) => {
         // Save BMI
         bmi: expectedBmi,
 
+        // Save BMI category used to validate the final growth status
+        bmiCategory,
+
         // Save meals category used by the AI model
         meals: modelFeatures.meals,
 
@@ -657,13 +698,25 @@ const predictGrowth = async (req, res) => {
         // Save safe screen time value for compatibility with older history records
         screenTime: numericScreenTime,
 
-        // Save AI prediction result
+        // Save corrected prediction result
         growthStatus,
 
         // Save full original request body for debugging/history
         inputData: {
-          // Save original request body
+          // Save original request body plus trusted server-calculated physical fields
           ...requestBody,
+
+          // Preserve the raw AI label for debugging when BMI rules adjust it
+          aiGrowthStatus,
+
+          // Save the BMI category used for final-status validation
+          bmiCategory,
+
+          // Save the final status sent to the frontend
+          growthStatus,
+
+          // Save backend recommendation mapping used by the UI
+          recommendations,
 
           // Save the exact AI payload sent to the Python service
           modelInput: growthInputData,
@@ -699,8 +752,17 @@ const predictGrowth = async (req, res) => {
 
       // Send prediction and saved MongoDB record
       data: {
-        // Send growth status for quick frontend display
+        // Send final growth status for quick frontend display
         growthStatus,
+
+        // Send raw model status for debugging transparent corrections
+        aiGrowthStatus,
+
+        // Send BMI category used by the final status guardrail
+        bmiCategory,
+
+        // Send recommendation mapping based on final status and BMI category
+        recommendations,
 
         // Send saved record details
         record: formatGrowthRecord(savedRecord),

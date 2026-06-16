@@ -1,106 +1,80 @@
-// Import axios package to send HTTP requests from backend to AI service
-const axios = require("axios");
+const axios = require("axios"); // Imports axios to send HTTP requests from Node backend to FastAPI AI service.
 
-// Store AI service base URL from environment variables
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL; // Gets AI service base URL from environment variables.
 
-// Function to call AI API for growth status prediction
+if (!AI_SERVICE_URL) {
+  throw new Error("AI_SERVICE_URL is missing in environment variables"); // Stops backend if AI service URL is not configured.
+} // Checks whether AI service URL exists.
+
+// Function to call AI API for growth status prediction.
 const predictGrowthStatus = async (growthInputData) => {
-  // Start try block to handle successful AI API request
   try {
-    // Send POST request to Python AI service growth prediction endpoint
     const response = await axios.post(
-      // Build complete AI endpoint URL for growth prediction
-      `${AI_SERVICE_URL}/predict/growth-status`,
-
-      // Send growth input data to AI service
-      growthInputData,
-
-      // Set a timeout so the backend does not hang forever if AI service is down
+      `${AI_SERVICE_URL}/predict/growth-status`, // Sends request to FastAPI growth prediction endpoint.
+      growthInputData, // Sends child growth input data to AI service.
       {
-        timeout: 10000,
+        timeout: 10000, // Stops request if AI service does not respond within 10 seconds.
       }
-    );
+    ); // Calls AI service using POST request.
 
-    // Check if AI service explicitly returned a failed response
     if (!response.data?.success) {
-      // Throw the AI service message so the controller can return it clearly
-      throw new Error(response.data?.message || "Growth prediction failed");
-    }
+      throw new Error(response.data?.message || "Growth prediction failed"); // Throws clear error if AI response is unsuccessful.
+    } // Checks whether AI service returned success.
 
-    // Return only the prediction object needed by the controller
-    return response.data.prediction;
+    return response.data.prediction; // Returns prediction result to controller.
   } catch (error) {
-    // Throw custom error if AI service request fails
     throw new Error(
-      // Use AI error message if available, otherwise use default message
       error.response?.data?.message ||
         error.message ||
         "Growth prediction AI service failed"
-    );
-  }
-};
+    ); // Sends readable AI service error to controller.
+  } // Handles AI service errors.
+}; // Ends growth status prediction function.
 
-// Function to call AI API for weekly progress prediction
+// Function to call AI API for weekly progress prediction.
 const predictWeeklyProgress = async (weeklyInputData) => {
-  // Start try block to handle successful AI API request
   try {
-    // Send POST request to Python AI service weekly progress prediction endpoint
     const response = await axios.post(
-      // Build complete AI endpoint URL for weekly progress prediction
-      `${AI_SERVICE_URL}/predict-progress`,
+      `${AI_SERVICE_URL}/predict-progress`, // Sends request to FastAPI weekly progress endpoint.
+      weeklyInputData, // Sends weekly routine input data to AI service.
+      {
+        timeout: 10000, // Stops request if AI service takes too long.
+      }
+    ); // Calls AI service using POST request.
 
-      // Send weekly input data to AI service
-      weeklyInputData
-    );
-
-    // Return AI service response data to controller
-    return response.data;
+    return response.data; // Returns weekly progress result to controller.
   } catch (error) {
-    // Throw custom error if AI service request fails
     throw new Error(
-      // Use AI error message if available, otherwise use default message
       error.response?.data?.message ||
         error.message ||
         "Weekly progress AI service failed"
-    );
-  }
-};
+    ); // Sends readable weekly progress error to controller.
+  } // Handles weekly progress AI errors.
+}; // Ends weekly progress prediction function.
 
-// Function to call AI API for recommendation prediction
+// Function to call AI API for recommendation prediction.
 const predictRecommendations = async (recommendationInputData) => {
-  // Start try block to handle successful AI API request
   try {
-    // Send POST request to Python AI service recommendation endpoint
     const response = await axios.post(
-      // Build complete AI endpoint URL for recommendation prediction
-      `${AI_SERVICE_URL}/predict-recommendations`,
+      `${AI_SERVICE_URL}/predict-recommendations`, // Sends request to FastAPI recommendation endpoint.
+      recommendationInputData, // Sends recommendation input data to AI service.
+      {
+        timeout: 10000, // Stops request if AI service takes too long.
+      }
+    ); // Calls AI service using POST request.
 
-      // Send recommendation input data to AI service
-      recommendationInputData
-    );
-
-    // Return AI service response data to controller
-    return response.data;
+    return response.data; // Returns recommendation result to controller.
   } catch (error) {
-    // Throw custom error if AI service request fails
     throw new Error(
-      // Use AI error message if available, otherwise use default message
       error.response?.data?.message ||
         error.message ||
         "Recommendation AI service failed"
-    );
-  }
-};
+    ); // Sends readable recommendation error to controller.
+  } // Handles recommendation AI errors.
+}; // Ends recommendation prediction function.
 
-// Export AI service functions so controllers can use them
 module.exports = {
-  // Export growth status prediction function
-  predictGrowthStatus,
-
-  // Export weekly progress prediction function
-  predictWeeklyProgress,
-
-  // Export recommendation prediction function
-  predictRecommendations,
-};
+  predictGrowthStatus, // Exports growth status prediction function.
+  predictWeeklyProgress, // Exports weekly progress prediction function.
+  predictRecommendations, // Exports recommendation prediction function.
+}; // Makes AI service functions available to controllers.

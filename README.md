@@ -116,6 +116,125 @@ The system provides recommendations such as:
 
 ---
 
+## AI Service And Backend Prediction Test
+
+### Install dependencies
+
+```bash
+cd ai-service
+python -m pip install -r requirements.txt
+
+cd ../backend
+npm install
+```
+
+### Run AI service
+
+```bash
+cd ai-service
+python -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Run backend
+
+```bash
+cd backend
+npm run dev
+```
+
+### Test AI service directly
+
+```text
+POST http://localhost:8000/predict/growth-status
+```
+
+```json
+{
+  "age": 5,
+  "gender": "Male",
+  "height": 110,
+  "weight": 18,
+  "bmi": 14.9
+}
+```
+
+### Predict and save record through backend
+
+```text
+POST http://localhost:5000/api/growth/predict
+Authorization: Bearer <your_login_token>
+Content-Type: application/json
+```
+
+```json
+{
+  "age": 5,
+  "gender": "Male",
+  "height": 110,
+  "weight": 18,
+  "bmi": 14.9
+}
+```
+
+Expected response:
+
+```json
+{
+  "success": true,
+  "message": "Growth status predicted and saved successfully",
+  "data": {
+    "growthStatus": "Normal Growth",
+    "record": {
+      "_id": "mongo_record_id_here",
+      "age": 5,
+      "gender": "Male",
+      "height": 110,
+      "weight": 18,
+      "bmi": 14.9,
+      "growthStatus": "Normal Growth",
+      "createdAt": "date_here"
+    }
+  }
+}
+```
+
+### Get growth history
+
+```text
+GET http://localhost:5000/api/growth/history
+Authorization: Bearer <your_login_token>
+```
+
+Expected response:
+
+```json
+{
+  "success": true,
+  "message": "Growth history fetched successfully",
+  "data": [
+    {
+      "_id": "record_id",
+      "age": 5,
+      "gender": "Male",
+      "height": 110,
+      "weight": 18,
+      "bmi": 14.9,
+      "growthStatus": "Normal Growth",
+      "createdAt": "date_here"
+    }
+  ]
+}
+```
+
+### Get one child's growth history
+
+```text
+GET http://localhost:5000/api/growth/history/<childId>
+Authorization: Bearer <your_login_token>
+```
+
+---
+
 ## Project Structure
 
 ```text

@@ -25,6 +25,9 @@ app.use("/api/children", require("./routes/childRoutes"));
 // Use growth record routes for growth prediction records APIs
 app.use("/api/growth-records", require("./routes/growthRecordRoutes"));
 
+// Use growth AI routes for live growth status prediction APIs
+app.use("/api/growth", require("./routes/growthRoutes"));
+
 // Use weekly routine routes for weekly progress tracking APIs
 app.use("/api/weekly-routines", require("./routes/weeklyRoutineRoutes"));
 

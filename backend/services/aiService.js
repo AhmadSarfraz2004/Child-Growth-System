@@ -2,7 +2,7 @@
 const axios = require("axios");
 
 // Store AI service base URL from environment variables
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL;
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
 
 // Function to call AI API for growth status prediction
 const predictGrowthStatus = async (growthInputData) => {
@@ -11,19 +11,32 @@ const predictGrowthStatus = async (growthInputData) => {
     // Send POST request to Python AI service growth prediction endpoint
     const response = await axios.post(
       // Build complete AI endpoint URL for growth prediction
-      `${AI_SERVICE_URL}/predict-growth`,
+      `${AI_SERVICE_URL}/predict/growth-status`,
 
       // Send growth input data to AI service
-      growthInputData
+      growthInputData,
+
+      // Set a timeout so the backend does not hang forever if AI service is down
+      {
+        timeout: 10000,
+      }
     );
 
-    // Return AI service response data to controller
-    return response.data;
+    // Check if AI service explicitly returned a failed response
+    if (!response.data?.success) {
+      // Throw the AI service message so the controller can return it clearly
+      throw new Error(response.data?.message || "Growth prediction failed");
+    }
+
+    // Return only the prediction object needed by the controller
+    return response.data.prediction;
   } catch (error) {
     // Throw custom error if AI service request fails
     throw new Error(
       // Use AI error message if available, otherwise use default message
-      error.response?.data?.message || "Growth prediction AI service failed"
+      error.response?.data?.message ||
+        error.message ||
+        "Growth prediction AI service failed"
     );
   }
 };
@@ -47,7 +60,9 @@ const predictWeeklyProgress = async (weeklyInputData) => {
     // Throw custom error if AI service request fails
     throw new Error(
       // Use AI error message if available, otherwise use default message
-      error.response?.data?.message || "Weekly progress AI service failed"
+      error.response?.data?.message ||
+        error.message ||
+        "Weekly progress AI service failed"
     );
   }
 };
@@ -71,7 +86,9 @@ const predictRecommendations = async (recommendationInputData) => {
     // Throw custom error if AI service request fails
     throw new Error(
       // Use AI error message if available, otherwise use default message
-      error.response?.data?.message || "Recommendation AI service failed"
+      error.response?.data?.message ||
+        error.message ||
+        "Recommendation AI service failed"
     );
   }
 };

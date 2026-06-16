@@ -8,26 +8,38 @@ const buildGrowthInput = (data) => {
     // Send gender to AI model
     gender: data.gender,
 
-    // Send height in centimeters to AI model
-    heightCm: data.heightCm,
+    // Send height in centimeters using the exact trained model column name
+    height: data.height,
 
-    // Send weight in kilograms to AI model
-    weightKg: data.weightKg,
+    // Send weight in kilograms using the exact trained model column name
+    weight: data.weight,
+
+    // Send meal frequency category to AI model
+    meals: data.meals,
+
+    // Send fruit and vegetable intake category to AI model
+    fruits_veggies: data.fruits_veggies,
+
+    // Send junk food frequency category to AI model
+    junk_food: data.junk_food,
+
+    // Send milk/protein intake category to AI model
+    protein: data.protein,
+
+    // Send sleep duration category to AI model
+    sleep: data.sleep,
+
+    // Send physical activity category to AI model
+    activity: data.activity,
+
+    // Send screen time category to AI model
+    screen_time: data.screen_time,
+
+    // Send medical condition flag to AI model
+    medical: data.medical,
 
     // Send calculated BMI to AI model
     bmi: data.bmi,
-
-    // Send sleep hours to AI model
-    sleepHours: data.sleepHours,
-
-    // Send diet score to AI model
-    dietScore: data.dietScore,
-
-    // Send activity hours to AI model
-    activityHours: data.activityHours,
-
-    // Send screen time to AI model
-    screenTime: data.screenTime,
   };
 };
 

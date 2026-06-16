@@ -104,6 +104,12 @@ const addGrowthRecord = async (req, res) => {
 
     // Create new growth record in database
     const growthRecord = await GrowthRecord.create({
+      // Save logged-in parent/user ID with this growth record
+      user: req.user._id,
+
+      // Save child reference using the new canonical field
+      child: childId,
+
       // Save child ID with this growth record
       childId,
 
@@ -112,6 +118,12 @@ const addGrowthRecord = async (req, res) => {
 
       // Save child gender
       gender,
+
+      // Save normalized height in centimeters for shared growth history
+      height: heightCm,
+
+      // Save normalized weight in kilograms for shared growth history
+      weight: weightKg,
 
       // Save child height in centimeters
       heightCm,
@@ -139,6 +151,12 @@ const addGrowthRecord = async (req, res) => {
 
       // Save confidence score if available; otherwise save null
       confidenceScore: confidenceScore || null,
+
+      // Save full request body for debugging/history
+      inputData: req.body,
+
+      // Mark this record as manually supplied by the backend record API
+      predictionSource: "MANUAL_ENTRY",
     });
 
     // Return success response with created growth record

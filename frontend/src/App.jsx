@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   Baby,
@@ -19,7 +19,7 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { apiRequest, getApiBaseUrl } from "./api";
+import { apiRequest } from "./api";
 import childPhoto from "./assets/child-login-photo.png";
 
 const navItems = [
@@ -381,6 +381,162 @@ function Logo() {
   );
 }
 
+function InteractiveStatsSection() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const section = canvas?.closest(".interactiveStatsSection");
+
+    if (!canvas || !section) return undefined;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) return undefined;
+
+    const pointer = { x: 0, y: 0, active: false };
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let width = 0;
+    let height = 0;
+    let animationFrame = 0;
+    let particles = [];
+
+    const createParticles = () => {
+      const count = width < 640 ? 34 : width < 1024 ? 48 : 68;
+      particles = Array.from({ length: count }, () => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.34,
+        vy: (Math.random() - 0.5) * 0.34,
+        radius: 1.5 + Math.random() * 1.8,
+      }));
+    };
+
+    const resize = () => {
+      const bounds = section.getBoundingClientRect();
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      width = Math.max(bounds.width, 1);
+      height = Math.max(bounds.height, 1);
+      canvas.width = Math.floor(width * pixelRatio);
+      canvas.height = Math.floor(height * pixelRatio);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      createParticles();
+    };
+
+    const movePointer = (event) => {
+      const bounds = section.getBoundingClientRect();
+      pointer.x = event.clientX - bounds.left;
+      pointer.y = event.clientY - bounds.top;
+      pointer.active = true;
+    };
+
+    const leavePointer = () => {
+      pointer.active = false;
+    };
+
+    const drawLine = (start, end, opacity, color = "255, 255, 255") => {
+      context.strokeStyle = `rgba(${color}, ${opacity})`;
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(start.x, start.y);
+      context.lineTo(end.x, end.y);
+      context.stroke();
+    };
+
+    const render = () => {
+      context.clearRect(0, 0, width, height);
+
+      particles.forEach((particle, index) => {
+        if (!reducedMotion) {
+          particle.x += particle.vx;
+          particle.y += particle.vy;
+
+          if (particle.x < -20) particle.x = width + 20;
+          if (particle.x > width + 20) particle.x = -20;
+          if (particle.y < -20) particle.y = height + 20;
+          if (particle.y > height + 20) particle.y = -20;
+        }
+
+        if (pointer.active) {
+          const cursorDx = particle.x - pointer.x;
+          const cursorDy = particle.y - pointer.y;
+          const cursorDistance = Math.hypot(cursorDx, cursorDy);
+          const cursorReach = 155;
+
+          if (cursorDistance < cursorReach && cursorDistance > 0) {
+            const pull = (1 - cursorDistance / cursorReach) * 0.9;
+            particle.x += (cursorDx / cursorDistance) * pull;
+            particle.y += (cursorDy / cursorDistance) * pull;
+            drawLine(particle, pointer, (1 - cursorDistance / cursorReach) * 0.36, "116, 225, 179");
+          }
+        }
+
+        for (let nextIndex = index + 1; nextIndex < particles.length; nextIndex += 1) {
+          const next = particles[nextIndex];
+          const dx = particle.x - next.x;
+          const dy = particle.y - next.y;
+          const distance = Math.hypot(dx, dy);
+          const maxDistance = width < 640 ? 108 : 132;
+
+          if (distance < maxDistance) {
+            drawLine(particle, next, (1 - distance / maxDistance) * 0.24);
+          }
+        }
+
+        const nearPointer =
+          pointer.active && Math.hypot(particle.x - pointer.x, particle.y - pointer.y) < 120;
+
+        context.fillStyle = nearPointer ? "rgba(116, 225, 179, 0.95)" : "rgba(255, 255, 255, 0.78)";
+        context.beginPath();
+        context.arc(particle.x, particle.y, nearPointer ? particle.radius + 0.9 : particle.radius, 0, Math.PI * 2);
+        context.fill();
+      });
+
+      animationFrame = window.requestAnimationFrame(render);
+    };
+
+    resize();
+    render();
+
+    window.addEventListener("resize", resize);
+    section.addEventListener("pointermove", movePointer);
+    section.addEventListener("pointerleave", leavePointer);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", resize);
+      section.removeEventListener("pointermove", movePointer);
+      section.removeEventListener("pointerleave", leavePointer);
+    };
+  }, []);
+
+  return (
+    <section id="why" className="landingSection interactiveStatsSection">
+      <canvas ref={canvasRef} className="interactiveStatsCanvas" aria-hidden="true" />
+      <div className="interactiveStatsContent">
+        <span className="eyebrow">Why choose us</span>
+        <h2>Why choose Child Growth Predictor?</h2>
+        <div className="interactiveStatsGrid" aria-label="Child Growth Predictor highlights">
+          <article>
+            <strong>13+</strong>
+            <span>Model-ready inputs</span>
+          </article>
+          <article>
+            <strong>BMI</strong>
+            <span>Automatic checks</span>
+          </article>
+          <article>
+            <strong>24/7</strong>
+            <span>History access</span>
+          </article>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AuthScreen({ onAuth }) {
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "" });
@@ -431,6 +587,7 @@ function AuthScreen({ onAuth }) {
           <a href="#about">About</a>
           <a href="#features">Features</a>
           <a href="#working">How it works</a>
+          <a href="#why">Why choose</a>
           <a href="#auth" onClick={() => setMode("login")}>Login</a>
         </nav>
         <a className="primaryButton landingHeaderCta" href="#auth" onClick={() => setMode("register")}>
@@ -561,6 +718,8 @@ function AuthScreen({ onAuth }) {
         </div>
       </section>
 
+      <InteractiveStatsSection />
+
       <section id="auth" className="landingSection authSection">
         <div className="sectionIntro compact">
           <span className="eyebrow">Parent account</span>
@@ -624,7 +783,6 @@ function AuthScreen({ onAuth }) {
             </button>
           </form>
 
-          <p className="smallNote">Backend: {getApiBaseUrl()}</p>
         </section>
       </section>
 

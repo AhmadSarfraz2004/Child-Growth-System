@@ -250,6 +250,7 @@ button:disabled {
 
 .landingSection {
   padding: clamp(58px, 8vw, 96px) clamp(18px, 6vw, 78px);
+  scroll-margin-top: 88px;
 }
 
 .sectionIntro {
@@ -446,6 +447,79 @@ button:disabled {
   transition: transform 0.22s ease;
 }
 
+.interactiveStatsSection {
+  position: relative;
+  min-height: 430px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(8, 184, 189, 0.2), transparent 34%),
+    linear-gradient(135deg, #0c1828 0%, #102133 52%, #073540 100%);
+
+}
+
+.interactiveStatsCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.interactiveStatsContent {
+  position: relative;
+  z-index: 1;
+  width: min(1040px, 100%);
+  display: grid;
+  gap: 34px;
+  text-align: center;
+}
+
+.interactiveStatsContent .eyebrow {
+  color: #7ee2e8;
+}
+
+.interactiveStatsContent h2 {
+  max-width: 760px;
+  margin: 0 auto;
+  font-family: var(--font-display);
+  font-size: 46px;
+  line-height: 1.05;
+}
+
+.interactiveStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(18px, 5vw, 72px);
+  align-items: center;
+}
+
+.interactiveStatsGrid article {
+  display: grid;
+  gap: 10px;
+  min-height: 134px;
+  align-content: center;
+  border-radius: 8px;
+  transition: transform 0.22s ease;
+}
+
+.interactiveStatsGrid strong {
+  color: #74e1b3;
+  font-family: var(--font-display);
+  font-size: clamp(52px, 7vw, 76px);
+  line-height: 0.95;
+  text-shadow: 0 16px 34px rgba(8, 184, 189, 0.2);
+}
+
+.interactiveStatsGrid span {
+  color: rgba(255, 255, 255, 0.86);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 800;
+}
+
 .authSection {
   display: grid;
   justify-items: center;
@@ -513,6 +587,10 @@ button:disabled {
 
   .qualityList span:hover svg {
     transform: scale(1.12);
+  }
+
+  .interactiveStatsGrid article:hover {
+    transform: translateY(-6px);
   }
 }
 
@@ -1456,6 +1534,10 @@ th {
     padding-block: 14px;
   }
 
+  .landingSection {
+    scroll-margin-top: 136px;
+  }
+
   .landingNav {
     order: 3;
     width: 100%;
@@ -1474,15 +1556,21 @@ th {
   }
 
   .sectionIntro h2,
-  .professionalSection h2 {
+  .professionalSection h2,
+  .interactiveStatsContent h2 {
     font-size: 36px;
   }
 
   .aboutGrid,
   .featureGrid,
   .workingTimeline,
-  .professionalSection {
+  .professionalSection,
+  .interactiveStatsGrid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .interactiveStatsSection {
+    min-height: 500px;
   }
 
   .heroMetrics {
@@ -1555,17 +1643,36 @@ th {
   .aboutGrid,
   .featureGrid,
   .workingTimeline,
-  .professionalSection {
+  .professionalSection,
+  .interactiveStatsGrid {
     grid-template-columns: 1fr;
   }
 
   .sectionIntro h2,
-  .professionalSection h2 {
+  .professionalSection h2,
+  .interactiveStatsContent h2 {
     font-size: 30px;
   }
 
   .landingSection {
     padding: 46px 16px;
+    scroll-margin-top: 176px;
+  }
+
+  .interactiveStatsSection {
+    min-height: 620px;
+  }
+
+  .interactiveStatsContent {
+    gap: 24px;
+  }
+
+  .interactiveStatsGrid {
+    gap: 18px;
+  }
+
+  .interactiveStatsGrid article {
+    min-height: 104px;
   }
 
   .landingFooter {
